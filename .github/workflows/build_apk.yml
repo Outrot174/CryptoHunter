@@ -21,7 +21,7 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Prepare BIP-39 Wordlist & App Icon
+      - name: Prepare Gradle Configs, Wordlist & Icon
         run: |
           mkdir -p app/src/main/assets
           curl -sSL https://raw.githubusercontent.com/bitcoin/bips/master/bip-0039/english.txt -o app/src/main/assets/bip39_english.txt
@@ -30,13 +30,114 @@ jobs:
             cp icon.png app/src/main/res/drawable-nodpi/ic_launcher.png
           fi
 
+          cat << 'EOF' > settings.gradle.kts
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = "CryptoHunter"
+          include(":app")
+          EOF
+
+          cat << 'EOF' > build.gradle.kts
+          plugins {
+              id("com.android.application") version "8.2.2" apply false
+              id("org.jetbrains.kotlin.android") version "1.9.22" apply false
+          }
+          EOF
+
+          cat << 'EOF' > gradle.properties
+          org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+          android.useAndroidX=true
+          kotlin.code.style=official
+          android.nonTransitiveRClass=true
+          EOF
+
+          cat << 'EOF' > app/build.gradle.kts
+          plugins {
+              id("com.android.application")
+              id("org.jetbrains.kotlin.android")
+          }
+
+          android {
+              namespace = "org.example.cryptohunter"
+              compileSdk = 34
+
+              defaultConfig {
+                  applicationId = "org.example.crypto_hunter"
+                  minSdk = 24
+                  targetSdk = 34
+                  versionCode = 1
+                  versionName = "2.0"
+              }
+
+              buildTypes {
+                  release {
+                      isMinifyEnabled = false
+                  }
+              }
+
+              compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
+              }
+
+              kotlinOptions {
+                  jvmTarget = "17"
+              }
+
+              buildFeatures {
+                  compose = true
+              }
+
+              composeOptions {
+                  kotlinCompilerExtensionVersion = "1.5.8"
+              }
+
+              packaging {
+                  resources {
+                      excludes += "/META-INF/{AL2.0,LGPL2.1}"
+                      excludes += "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
+                  }
+              }
+          }
+
+          dependencies {
+              val composeBom = platform("androidx.compose:compose-bom:2024.02.00")
+              implementation(composeBom)
+              implementation("androidx.compose.ui:ui")
+              implementation("androidx.compose.material3:material3")
+              implementation("androidx.compose.ui:ui-tooling-preview")
+              implementation("androidx.activity:activity-compose:1.8.2")
+              implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
+              implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+
+              implementation("com.squareup.okhttp3:okhttp:4.12.0")
+              implementation("org.bouncycastle:bcprov-jdk18on:1.78.1")
+              implementation("androidx.security:security-crypto:1.1.0-alpha06")
+          }
+          EOF
+
+          echo "=== Repository file tree ==="
+          find . -maxdepth 5 -not -path '*/.*'
+
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.6'
 
       - name: Build Debug APK
-        run: gradle assembleDebug --no-daemon
+        run: gradle :app:assembleDebug --no-daemon
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
